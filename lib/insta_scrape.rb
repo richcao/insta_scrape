@@ -187,6 +187,7 @@ module InstaScrape
   end
 
   def self.long_scrape_posts(max_iteration, include_meta_data:)
+    max_iteration = 1 if max_iteration < 1
     #page.find('a', :text => "Load more", exact: true).click
     iteration = 0
     print "InstaScrape is working. Please wait."
@@ -195,10 +196,6 @@ module InstaScrape
     # instagram randomly removes items everytime we scroll. so we read everything and filter out duplicates
     while iteration < max_iteration do
       iteration += 1
-#      if (page.driver.console_messages.length > 0) then
-#        page.driver.console_messages.each { |error| puts error }
-#        raise "Javascript error."
-#      end 
 
       begin
         iterate_through_posts(include_meta_data: include_meta_data) do |p| 
