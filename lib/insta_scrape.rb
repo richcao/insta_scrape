@@ -195,16 +195,11 @@ module InstaScrape
     # instagram randomly removes items everytime we scroll. so we read everything and filter out duplicates
     while iteration < max_iteration do
       iteration += 1
-      sleep 0.1
-      page.execute_script "window.scrollTo(0,document.body.scrollHeight);"
-
 #      if (page.driver.console_messages.length > 0) then
 #        page.driver.console_messages.each { |error| puts error }
 #        raise "Javascript error."
 #      end 
 
-      sleep 1
-      print "."
       begin
         iterate_through_posts(include_meta_data: include_meta_data) do |p| 
           yield p unless cache.include? p.link
@@ -213,6 +208,9 @@ module InstaScrape
       rescue Capybara::ElementNotFound => e
         puts "Retrying..."
       end
+
+      page.execute_script "window.scrollTo(0,document.body.scrollHeight);"
+      sleep 1
     end
 
   end
