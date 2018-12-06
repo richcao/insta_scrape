@@ -6,41 +6,41 @@ module InstaScrape
   #get a hashtag
   def self.hashtag(hashtag, include_meta_data: false)
     visit "https://www.instagram.com/explore/tags/#{hashtag}/"
-    @posts = []
-    scrape_posts(include_meta_data: include_meta_data)
+    scrape_posts(include_meta_data: include_meta_data) { |p| yield p }
   end
 
   #long scrape a hashtag
   def self.long_scrape_hashtag(hashtag, scrape_length, include_meta_data: false)
     visit "https://www.instagram.com/explore/tags/#{hashtag}/"
-    @posts = []
-    long_scrape_posts(scrape_length, include_meta_data: include_meta_data)
+    long_scrape_posts(scrape_length, include_meta_data: include_meta_data) { |p| yield p }
   end
 
   #long scrape a hashtag
   def self.long_scrape_user_posts(username, scrape_length, include_meta_data: false)
-    @posts = []
-    long_scrape_user_posts_method(username, scrape_length, include_meta_data: include_meta_data)
+    long_scrape_user_posts_method(username, scrape_length, include_meta_data: include_meta_data) { |p| yield p }
   end
 
   #get user info and posts
   def self.long_scrape_user_info_and_posts(username, scrape_length, include_meta_data: false)
-    scrape_user_info(username)
-    long_scrape_user_posts_method(username, scrape_length, include_meta_data: include_meta_data)
-    @user = InstaScrape::InstagramUserWithPosts.new(username, @image, @post_count, @follower_count, @following_count, @description, @posts)
+    image, post_count, follower_count, following_count, description, profile_link = scrape_user_info(username)
+    posts = []
+		long_scrape_user_posts_method(username, scrape_length, include_meta_data: include_meta_data) { |p| posts << p }
+    InstaScrape::InstagramUserWithPosts.new(username, image, post_count, follower_count, following_count, description, profile_link, posts)
   end
 
   #get user info
   def self.user_info(username)
-    scrape_user_info(username)
-    @user = InstaScrape::InstagramUser.new(username, @image, @post_count, @follower_count, @following_count, @description)
+    image, post_count, follower_count, following_count, description, profile_link = scrape_user_info(username)
+    InstaScrape::InstagramUser.new(username, image, post_count, follower_count, following_count, description, profile_link)
   end
 
   #get user info and posts
   def self.user_info_and_posts(username, include_meta_data: false)
-    scrape_user_info(username)
-    scrape_user_posts(username, include_meta_data: false)
-    @user = InstaScrape::InstagramUserWithPosts.new(username, @image, @post_count, @follower_count, @following_count, @description, @posts)
+    image, post_count, follower_count, following_count, description, profile_link = scrape_user_info(username)
+
+		posts = []
+    scrape_user_posts(username, include_meta_data: false) { |p| posts << p }
+    InstaScrape::InstagramUserWithPosts.new(username, image, post_count, follower_count, following_count, description, profile_link, posts)
   end
 
   #get user posts only
@@ -48,32 +48,23 @@ module InstaScrape
     scrape_user_posts(username, include_meta_data: include_meta_data)
   end
 
-  #get user follower count
-  def self.user_follower_count(username)
-    scrape_user_info(username)
-    return @follower_count
-  end
-
-  #get user following count
-  def self.user_following_count(username)
-    scrape_user_info(username)
-    return @following_count
-  end
-
-  #get user post count
-  def self.user_post_count(username)
-    scrape_user_info(username)
-    return @post_count
-  end
-
-  #get user description
-  def self.user_description(username)
-    scrape_user_info(username)
-    return @description
-  end
-
   private
   #post iteration method
+
+
+  def self.extract_post_metadata(url)
+      visit(url)
+      date = page.find('time')["datetime"]
+      username = page.first("article header h2 > a")["title"]
+      hi_res_image = page.all("img").last["src"]
+      location = nil
+      begin
+        location = page.find("#react-root > section > main > div > div > article > header > div.o-MQd > div.M30cS > a")["innerHTML"]
+      rescue Capybara::ElementNotFound => e
+      end
+
+      return username, location
+  end
 
   def self.iterate_through_posts(include_meta_data:)
     posts = all("article div div div a").collect do |post|
@@ -81,124 +72,162 @@ module InstaScrape
         image: post.find("img")["src"],
         text: post.find("img")["alt"]}
     end
+		puts "iterate_through_posts: #{posts.size} maximum"
 
     posts.each do |post|
-      if include_meta_data
-        visit(post[:link])
-        date = page.find('time')["datetime"]
-        username = page.first("article header div a")["title"]
-        hi_res_image = page.all("img").last["src"]
-        likes = page.find("div section span span")["innerHTML"]
-        info = InstaScrape::InstagramPost.new(post[:link], post[:image], {
-          date: date,
-          text: post[:text],
-          username: username,
-          hi_res_image: hi_res_image,
-          likes: likes
-        })
-      else
-        info = InstaScrape::InstagramPost.new(post[:link], post[:image], { text: text })
-      end
-      @posts << info
+      yield InstaScrape::InstagramPost.new(post[:link], post[:image], { text: text })
+#			if ScrapeLog.exists?(url: url) then
+#				puts "Already scraped #{url}"
+#				next
+#			else
+#				puts "Scraping #{url}"
+#			end
+#			tries = 0
+#			begin
+#				if include_meta_data
+#					visit(post[:link])
+#					puts "Visiting.. #{post[:link]}"
+#					date = page.find('time')["datetime"]
+#					username = page.first("article header h2 > a")["title"]
+#					hi_res_image = page.all("img").last["src"]
+#					#location = page.find(:xpath, "//article/header/div[2]/div[2]/a")["innerHTML"]
+#					location = nil
+#					#location = page.find(:xpath, "/")	o
+#					begin
+#						location = page.find("#react-root > section > main > div > div > article > header > div.o-MQd > div.M30cS > a")["innerHTML"]
+#					rescue Capybara::ElementNotFound => e
+#					end
+#					#location = page.find(:xpath, "article/header")
+#
+#					#likes = page.find("div section span span")["innerHTML"]
+#					likes = nil
+#					info = InstaScrape::InstagramPost.new(post[:link], post[:image], {
+#						date: date,
+#						text: post[:text],
+#						username: username,
+#						hi_res_image: hi_res_image,
+#						likes: likes, 
+#						location: location,
+#					})
+#				else
+#					info = InstaScrape::InstagramPost.new(post[:link], post[:image], { text: text })
+#				end
+#				yield info
+#				#output_posts << info
+#				ScrapeLog.create(url: url, scraped_at: Time.current)
+#
+#			rescue => e
+#				"Found an error.. retrying #{tries}"
+#				tries += 1
+#				retry if tries < 3
+#			end
     end
-
-    #log
-    puts "POST COUNT: #{@posts.length}"
-    self.log_posts
-    #return result
-    return @posts
   end
 
   #user info scraper method
   def self.scrape_user_info(username)
     visit "https://www.instagram.com/#{username}/"
-    @image = page.find('article header div img')["src"]
+
+    image = nil
+		post_count = nil
+		follower_count = nil
+		following_count = nil
+		description = nil
+		profile_link = nil
+
     within("header") do
-      post_count_html = page.find('span', :text => "posts", exact: true)['innerHTML']
-      @post_count = get_span_value(post_count_html)
-      follower_count_html = page.find('span', :text => "followers", exact: true)['innerHTML']
-      @follower_count = get_span_value(follower_count_html)
-      following_count_html = page.find('span', :text => "following", exact: true)['innerHTML']
-      @following_count = get_span_value(following_count_html)
-      description = page.find('h2').first(:xpath,".//..")['innerHTML']
-      @description = Nokogiri::HTML(description).text
+      items = page.find("ul").all("li")
+			begin
+				post_count = human_to_number items[0].find("span")['innerHTML']
+				follower_count = human_to_number items[1].find("span")['innerHTML']
+				following_count = human_to_number items[2].find("span")['innerHTML']
+
+				description = page.find(:xpath, 'section/div[2]/span')['innerHTML']
+				document = Nokogiri::HTML(description)
+				document.css("br").each { |node| node.replace("\n") }
+
+				description = document.text
+				profile_link = page.find(:xpath, 'section/div[2]/a')['innerHTML'] 
+			rescue Capybara::ElementNotFound => e
+			end
     end
+    return image, post_count, follower_count, following_count, description, profile_link
+  end
+
+  MULTIPLIERS = { 'k' => 10**3, 'm' => 10**6, 'b' => 10**9 }
+  # convert 1.32K to 13200 or 1,175 to 1175.
+  def self.human_to_number(human)
+		human = human.delete(",")
+		number = human[/(\d+\.?)+/].to_f
+		factor = human[/\w$/].try(:downcase)
+		(number * MULTIPLIERS.fetch(factor, 1)).to_i
   end
 
   #scrape posts
   def self.scrape_posts(include_meta_data:)
+    #page.find('a', :text => "Load more", exact: true).click
+    max_iteration = 10
+    iteration = 0
+    while iteration < max_iteration do
+      iteration += 1
+      page.execute_script "window.scrollTo(0,document.body.scrollHeight);"
+
+
+      sleep 0.1
+    end
+
+		tries = 0
     begin
-      page.find('a', :text => "Load more", exact: true).click
-      max_iteration = 10
-      iteration = 0
-      while iteration < max_iteration do
-        iteration += 1
-        page.execute_script "window.scrollTo(0,document.body.scrollHeight);"
-        sleep 0.1
-        page.execute_script "window.scrollTo(0,(document.body.scrollHeight - 5000));"
-        sleep 0.1
-      end
-      iterate_through_posts(include_meta_data: include_meta_data)
+      iterate_through_posts(include_meta_data: include_meta_data) do |p| yield p end
+
     rescue Capybara::ElementNotFound => e
-      begin
-        iterate_through_posts(include_meta_data: include_meta_data)
-      end
+      puts "Retrying... "
+			tries += 1
+			retry if tries < 3
     end
   end
 
-  def self.long_scrape_posts(scrape_length_in_seconds, include_meta_data:)
-    begin
-      page.find('a', :text => "Load more", exact: true).click
-      max_iteration = (scrape_length_in_seconds / 0.3)
-      iteration = 0
-      @loader = "."
-      while iteration < max_iteration do
-        puts "InstaScrape is working. Please wait.#{@loader}"
-        iteration += 1
-        sleep 0.1
-        page.execute_script "window.scrollTo(0,document.body.scrollHeight);"
-        sleep 0.1
-        page.execute_script "window.scrollTo(0,(document.body.scrollHeight - 5000));"
-        sleep 0.1
-        @loader << "."
-        system "clear"
-      end
-      iterate_through_posts(include_meta_data: include_meta_data)
-    rescue Capybara::ElementNotFound => e
+  def self.long_scrape_posts(max_iteration, include_meta_data:)
+    #page.find('a', :text => "Load more", exact: true).click
+    iteration = 0
+    print "InstaScrape is working. Please wait."
+    cache = Set.new
+
+    # instagram randomly removes items everytime we scroll. so we read everything and filter out duplicates
+    while iteration < max_iteration do
+      iteration += 1
+      sleep 0.1
+      page.execute_script "window.scrollTo(0,document.body.scrollHeight);"
+
+#      if (page.driver.console_messages.length > 0) then
+#        page.driver.console_messages.each { |error| puts error }
+#        raise "Javascript error."
+#      end 
+
+      sleep 1
+      print "."
       begin
-        iterate_through_posts(include_meta_data: include_meta_data)
+        iterate_through_posts(include_meta_data: include_meta_data) do |p| 
+          yield p unless cache.include? p.link
+          cache << p.link
+        end
+      rescue Capybara::ElementNotFound => e
+        puts "Retrying..."
       end
     end
+
   end
 
   def self.long_scrape_user_posts_method(username, scrape_length_in_seconds, include_meta_data:)
-    @posts = []
     visit "https://www.instagram.com/#{username}/"
-    long_scrape_posts(scrape_length_in_seconds, include_meta_data: include_meta_data)
+    long_scrape_posts(scrape_length_in_seconds, include_meta_data: include_meta_data) { |p| yield p }
   end
 
   def self.scrape_user_posts(username, include_meta_data:)
-    @posts = []
     visit "https://www.instagram.com/#{username}/"
-    scrape_posts(include_meta_data: include_meta_data)
+    scrape_posts(include_meta_data: include_meta_data) { |p| yield p }
   end
 
-  #post logger
-  def self.log_posts
-    post = @posts.sample
-    puts "* Printing Sample Post *"
-    puts "\n"
-    puts "Image: #{post.image}\n"
-    puts "Link: #{post.link}\n"
-    puts "Text: #{post.text}\n"
-    if post.date
-      puts "Date: #{post.date}\n"
-      puts "Username: #{post.username}\n"
-      puts "Hi Res Image: #{post.hi_res_image}\n"
-      puts "Likes: #{post.likes}\n"
-    end
-    puts "\n"
-  end
 
   #split away span tags from user info numbers
   def self.get_span_value(element)
