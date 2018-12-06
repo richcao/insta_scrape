@@ -54,7 +54,6 @@ module InstaScrape
 
   def self.extract_post_metadata(url)
       visit(url)
-      date = page.find('time')["datetime"]
       username = page.first("article header h2 > a")["title"]
       hi_res_image = page.all("img").last["src"]
       location = nil
