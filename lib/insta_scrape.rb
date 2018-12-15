@@ -22,25 +22,25 @@ module InstaScrape
 
   #get user info and posts
   def self.long_scrape_user_info_and_posts(username, scrape_length, include_meta_data: false)
-    image, post_count, follower_count, following_count, description, profile_link = scrape_user_info(username)
+    image, post_count, follower_count, following_count, description, profile_link, name = scrape_user_info(username)
     posts = []
 		long_scrape_user_posts_method(username, scrape_length, include_meta_data: include_meta_data) { |p| posts << p }
-    InstaScrape::InstagramUserWithPosts.new(username, image, post_count, follower_count, following_count, description, profile_link, posts)
+    InstaScrape::InstagramUserWithPosts.new(username, image, post_count, follower_count, following_count, description, profile_link, name, posts)
   end
 
   #get user info
   def self.user_info(username)
-    image, post_count, follower_count, following_count, description, profile_link = scrape_user_info(username)
-    InstaScrape::InstagramUser.new(username, image, post_count, follower_count, following_count, description, profile_link)
+    image, post_count, follower_count, following_count, description, profile_link, name = scrape_user_info(username)
+    InstaScrape::InstagramUser.new(username, image, post_count, follower_count, following_count, description, profile_link, name)
   end
 
   #get user info and posts
   def self.user_info_and_posts(username, include_meta_data: false)
-    image, post_count, follower_count, following_count, description, profile_link = scrape_user_info(username)
+    image, post_count, follower_count, following_count, description, profile_link, name = scrape_user_info(username)
 
 		posts = []
     scrape_user_posts(username, include_meta_data: false) { |p| posts << p }
-    InstaScrape::InstagramUserWithPosts.new(username, image, post_count, follower_count, following_count, description, profile_link, posts)
+    InstaScrape::InstagramUserWithPosts.new(username, image, post_count, follower_count, following_count, description, profile_link, name, posts)
   end
 
   #get user posts only
@@ -133,6 +133,7 @@ module InstaScrape
 		following_count = nil
 		description = nil
 		profile_link = nil
+    name = nil
 
     within("header") do
       items = page.find("ul").all("li")
@@ -147,10 +148,11 @@ module InstaScrape
 
 				description = document.text
 				profile_link = page.find(:xpath, 'section/div[2]/a')['innerHTML'] 
+				name = page.find(:xpath, 'section/div[2]/h1')['innerHTML']
 			rescue Capybara::ElementNotFound => e
 			end
     end
-    return image, post_count, follower_count, following_count, description, profile_link
+    return image, post_count, follower_count, following_count, description, profile_link, name
   end
 
   MULTIPLIERS = { 'k' => 10**3, 'm' => 10**6, 'b' => 10**9 }
@@ -202,12 +204,14 @@ module InstaScrape
           yield p unless cache.include? p.link
           cache << p.link
         end
+        page.execute_script "window.scrollTo(0,document.body.scrollHeight);"
+        sleep 1
       rescue Capybara::ElementNotFound => e
+        puts "Retrying..."
+      rescue => e
         puts "Retrying..."
       end
 
-      page.execute_script "window.scrollTo(0,document.body.scrollHeight);"
-      sleep 1
     end
 
   end
