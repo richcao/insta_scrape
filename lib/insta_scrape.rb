@@ -68,7 +68,7 @@ module InstaScrape
   def self.iterate_through_posts(include_meta_data:)
 
     puts "ITERATE POSTS"
-    all("script").each do |script|
+    page.all("script").each do |script|
       puts "SCRIPT"
       if script.text =~ /^window\._sharedData/ then
         puts script.text
