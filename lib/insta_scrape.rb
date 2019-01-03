@@ -68,11 +68,9 @@ module InstaScrape
   def self.iterate_through_posts(include_meta_data:)
 
     puts "ITERATE POSTS"
-    page.css("script").each do |script|
-      puts "SCRIPT"
-      if script.text =~ /^window\._sharedData/ then
-        puts script.text
-      end
+    page.all('body script', visible: false).each do |el|
+      puts 'script: '
+      puts el.text(:all)
     end
     posts = all("article div div div a").collect do |post|
       { link: post["href"],
