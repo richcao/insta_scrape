@@ -102,6 +102,8 @@ module InstaScrape
       puts "posts are present"
       #posts = posts["hashtag"]["edge_hashtag_to_media"]["edges"]
       posts.each do |p|
+        puts "doing POST:"
+        puts p.inspect
         begin 
           text = p["node"]["edge_media_to_caption"]["edges"][0]["node"]["text"]
           shortcode = p["node"]["shortcode"]
