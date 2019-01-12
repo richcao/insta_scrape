@@ -317,12 +317,11 @@ module InstaScrape
         end
         page.execute_script "window.scrollTo(0,document.body.scrollHeight);"
         sleep 1
-				wait_for_ajax
       rescue Capybara::ElementNotFound => e
         puts "Retrying... #{e}"
 #      rescue => e
 #        puts "Retrying... #{e}"
-#      end
+      end
 
     end
 
@@ -344,16 +343,6 @@ module InstaScrape
     begin_split = "\">"
     end_split = "</span>"
     return element[/#{begin_split}(.*?)#{end_split}/m, 1]
-  end
-
-  def self.wait_for_ajax
-#    Timeout.timeout(Capybara.default_max_wait_time) do
-#      loop until finished_all_ajax_requests?
-#    end
-  end
-
-  def self.finished_all_ajax_requests?
-    page.evaluate_script('window.Ajax.activeRequestCount').zero?
   end
 
 end
