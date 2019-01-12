@@ -71,18 +71,29 @@ module InstaScrape
 		intercepted = page.first("#interceptedResponse")
 		if intercepted.present? and intercepted["innerHTML"].present? then
       json = JSON.parse(intercepted["innerHTML"])
-      if json.present? and json["data"].present? then
-        posts = json["data"]["data"]
-      end
+#      if json.present? and json["data"].present? then
+#        posts = json["data"]["data"]
+#      end
     else
       json = page.evaluate_script("window._sharedData;");
-      posts = json["entry_data"]["TagPage"][0]["graphql"]
+#      entry_data = json["entry_data"]
+#
+#      tag_page = json["TagPage"]
+#      profile_page = json["ProfilePage"]
+#      if tag_page.present? then
+#        json = ["TagPage"][0]["graphql"]
+#      elsif profile_page.present? then
+#        json = ["ProfilePage"][0]["graphql"]
+#      end
       #json_string = json_string.gsub(/^window._sharedData = /, "")
       #json_string = json_string.gsub(/;$/, "")
       #json = JSON.parse(json_string)
 		end
+
+    json.extend Hashie::Extensions::DeepFetch
+    posts = json.deep_fetch "edges"
     if posts.present? then
-      posts = posts["hashtag"]["edge_hashtag_to_media"]["edges"]
+      #posts = posts["hashtag"]["edge_hashtag_to_media"]["edges"]
       posts.each do |p|
         begin 
           #pp p
