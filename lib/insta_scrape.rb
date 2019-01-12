@@ -67,20 +67,82 @@ module InstaScrape
 
   def self.iterate_through_posts(include_meta_data:)
 
-    puts "ITERATE POSTS"
-    page.all('body script', visible: false).each do |el|
-      puts 'script: '
-      puts el.text(:all)
+    post_metadata = {}
+		intercepted = page.first("#interceptedResponse")
+		if intercepted.present? and intercepted["innerHTML"].present? then
+      json = JSON.parse(intercepted["innerHTML"])
+      if json.present? and json["data"].present? then
+        posts = json["data"]["data"]
+      end
+    else
+      json = page.evaluate_script("window._sharedData;");
+      posts = json["entry_data"]["TagPage"][0]["graphql"]
+      #json_string = json_string.gsub(/^window._sharedData = /, "")
+      #json_string = json_string.gsub(/;$/, "")
+      #json = JSON.parse(json_string)
+		end
+    if posts.present? then
+      posts = posts["hashtag"]["edge_hashtag_to_media"]["edges"]
+      posts.each do |p|
+        begin 
+          #pp p
+          text = p["node"]["edge_media_to_caption"]["edges"][0]["node"]["text"]
+          shortcode = p["node"]["shortcode"]
+          likes = p["node"]["edge_liked_by"]["count"]
+          comments = p["node"]["edge_media_to_comment"]["count"]
+          image = p["node"]["thumbnail_src"]
+          link = "https://www.instagram.com/p/" + p["node"]["shortcode"]
+          post_metadata[shortcode] = { image: image, link: link, text: text, likes: likes, comments: comments }
+        rescue => e
+        end
+      end
     end
-    posts = all("article div div div a").collect do |post|
-      { link: post["href"],
-        image: post.find("img")["src"],
-        text: post.find("img")["alt"]}
-    end
-		puts "iterate_through_posts: #{posts.size} maximum"
 
-    posts.each do |post|
-      yield InstaScrape::InstagramPost.new(post[:link], post[:image], { text: text })
+#    page.all('body script', visible: false).each do |el|
+#      text = el.text(:all)
+#      if text =~ /^window._sharedData = / then
+#        json_string = text
+#        json_string = json_string.gsub(/^window._sharedData = /, "")
+#        json_string = json_string.gsub(/;$/, "")
+#        json = JSON.parse(json_string)
+#        posts = json["entry_data"]["TagPage"][0]["graphql"]["hashtag"]["edge_hashtag_to_media"]["edges"]
+#        posts.each do |p|
+#          begin 
+#            text = p["node"]["edge_media_to_caption"]["edges"][0]["node"]["text"]
+#            shortcode = p["node"]["shortcode"]
+#            likes = p["node"]["edge_liked_by"]["count"]
+#            comments = p["node"]["edge_media_to_comment"]["count"]
+#
+#
+#            post_metadata[shortcode] = { text: text, likes: likes, comments: comments }
+#          rescue => e
+#          end
+##          puts text.inspect
+##          puts shortcode.inspect
+##          puts liked_by.inspect
+#        end
+#      end
+#    end
+#    puts "post_metadata(#{post_metadata.size})"
+#    #puts post_metadata.inspect
+#    posts = all("article div div div a").collect do |post|
+#      shortcode = post["href"].gsub(/https:\/\/www.instagram.com\/p\//, "").gsub(/\/$/, "").strip
+#      meta_data = post_metadata[shortcode]
+#
+#      result = { link: post["href"],
+#        image: post.find("img")["src"],
+#        #text: post.find("img")["alt"],
+#      }
+#      if meta_data.present? then
+#        result = result.merge(meta_data)
+#      end
+#      result
+#    end
+#		puts "iterate_through_posts: #{posts.size} maximum"
+
+    post_metadata.each_pair do |shortcode, post|
+    #posts.each do |post|
+      yield InstaScrape::InstagramPost.new(post[:link], post[:image], { text: post[:text], comments: post[:comments], likes: post[:likes] })
 #			if ScrapeLog.exists?(url: url) then
 #				puts "Already scraped #{url}"
 #				next
@@ -188,13 +250,56 @@ module InstaScrape
       iterate_through_posts(include_meta_data: include_meta_data) do |p| yield p end
 
     rescue Capybara::ElementNotFound => e
-      puts "Retrying... "
+      puts "Retrying... #{e} "
 			tries += 1
 			retry if tries < 3
     end
   end
 
   def self.long_scrape_posts(max_iteration, include_meta_data:)
+
+		page.execute_script(%$ (function(XHR) {
+			"use strict";
+
+			var element = document.createElement('div');
+			element.id = "interceptedResponse";
+			element.appendChild(document.createTextNode(""));
+			document.body.appendChild(element);
+
+			var open = XHR.prototype.open;
+			var send = XHR.prototype.send;
+
+			XHR.prototype.open = function(method, url, async, user, pass) {
+				this._url = url; // want to track the url requested
+				open.call(this, method, url, async, user, pass);
+			};
+
+			XHR.prototype.send = function(data) {
+				var self = this;
+				var oldOnReadyStateChange;
+				var url = this._url;
+
+				function onReadyStateChange() {
+					if(self.status === 200 && self.readyState == 4 /* complete */) {
+						document.getElementById("interceptedResponse").innerHTML =
+							'{"data":' + self.responseText + '}';
+					}
+					if(oldOnReadyStateChange) {
+						oldOnReadyStateChange();
+					}
+				}
+
+				if(this.addEventListener) {
+					this.addEventListener("readystatechange", onReadyStateChange,
+						false);
+				} else {
+					oldOnReadyStateChange = this.onreadystatechange;
+					this.onreadystatechange = onReadyStateChange;
+				}
+				send.call(this, data);
+			}
+		})(XMLHttpRequest); $)
+
     max_iteration = 1 if max_iteration < 1
     #page.find('a', :text => "Load more", exact: true).click
     iteration = 0
@@ -212,11 +317,12 @@ module InstaScrape
         end
         page.execute_script "window.scrollTo(0,document.body.scrollHeight);"
         sleep 1
+				wait_for_ajax
       rescue Capybara::ElementNotFound => e
-        puts "Retrying..."
-      rescue => e
-        puts "Retrying..."
-      end
+        puts "Retrying... #{e}"
+#      rescue => e
+#        puts "Retrying... #{e}"
+#      end
 
     end
 
@@ -238,6 +344,16 @@ module InstaScrape
     begin_split = "\">"
     end_split = "</span>"
     return element[/#{begin_split}(.*?)#{end_split}/m, 1]
+  end
+
+  def self.wait_for_ajax
+#    Timeout.timeout(Capybara.default_max_wait_time) do
+#      loop until finished_all_ajax_requests?
+#    end
+  end
+
+  def self.finished_all_ajax_requests?
+    page.evaluate_script('window.Ajax.activeRequestCount').zero?
   end
 
 end
