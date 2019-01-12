@@ -67,14 +67,17 @@ module InstaScrape
 
   def self.iterate_through_posts(include_meta_data:)
 
+    puts "ITERATE THROUGH POSTS"
     post_metadata = {}
 		intercepted = page.first("#interceptedResponse")
 		if intercepted.present? and intercepted["innerHTML"].present? then
+      puts "FROM AJAX"
       json = JSON.parse(intercepted["innerHTML"])
 #      if json.present? and json["data"].present? then
 #        posts = json["data"]["data"]
 #      end
     else
+      puts "FROM PAGE"
       json = page.evaluate_script("window._sharedData;");
 #      entry_data = json["entry_data"]
 #
