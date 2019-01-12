@@ -93,14 +93,13 @@ module InstaScrape
     json.extend Hashie::Extensions::DeepFetch
     json.extend Hashie::Extensions::DeepFind
     puts json
-    posts = json.deep_find("edges")
+    posts = json.select("edges")
     #posts = json.deep_fetch("edge_owner_to_timeline_media", "edges", "nodes")
     if posts.present? then
       puts "posts are present"
       #posts = posts["hashtag"]["edge_hashtag_to_media"]["edges"]
       posts.each do |p|
         begin 
-          #pp p
           text = p["node"]["edge_media_to_caption"]["edges"][0]["node"]["text"]
           shortcode = p["node"]["shortcode"]
           likes = p["node"]["edge_liked_by"]["count"]
