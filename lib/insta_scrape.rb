@@ -113,7 +113,9 @@ module InstaScrape
           link = "https://www.instagram.com/p/" + p["node"]["shortcode"]
           post_metadata[shortcode] = { image: image, link: link, text: text, likes: likes, comments: comments }
         rescue => e
+          puts "Noped"
         end
+        puts "Parsed"
       end
     end
 
