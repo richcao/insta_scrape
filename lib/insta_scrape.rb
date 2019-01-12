@@ -257,6 +257,7 @@ module InstaScrape
   end
 
   def self.long_scrape_posts(max_iteration, include_meta_data:)
+    puts "long scrape posts"
 
 		page.execute_script(%$ (function(XHR) {
 			"use strict";
